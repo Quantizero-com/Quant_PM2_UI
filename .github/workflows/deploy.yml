@@ -1,0 +1,68 @@
+name: Deploy Service
+
+on:
+  push:
+    branches:
+      - main      # Trigger the workflow when pushing to the main branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Set up SSH for authentication
+      - name: Set up SSH
+        run: |
+          # Create .ssh directory if it doesn't exist
+          mkdir -p ~/.ssh
+          
+          # Write the SSH private key from GitHub Secrets into the file
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          
+          # Ensure the private key has the correct permissions
+          chmod 600 ~/.ssh/id_rsa
+          
+          # Add the remote host to known_hosts to prevent SSH from asking to confirm the fingerprint
+          ssh-keyscan -H "${{ secrets.SERVER_IP }}" >> ~/.ssh/known_hosts
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Run deploy script
+        run: |
+          ssh -i ~/.ssh/id_rsa "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}" "bash -c '
+            if [ ! -d ${DEPLOY_FOLDER} ]; then
+              cd /home/dev && GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy-Quant_PM2_UI" git clone ${REPO_URL} && cd /home/dev;
+            else
+              cd ${DEPLOY_FOLDER} && git pull origin main;
+            fi
+            npx pm2 restart ecosystem.config.js && npx pm2 save
+          '"
+          
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          REPO_URL: "https://github.com/${{ github.repository }}.git"
+          DEPLOY_FOLDER: "/home/dev/Quant_PM2_UI"
+          
+  notify_success:
+    name: Notify Success
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: success()
+    steps:
+      - name: Send Success Notification
+        run: |
+          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="[✅ Success] ${{ env.REPO_URL }} has been deployed."
+
+  notify_failure:
+    name: Notify Failure
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: failure()
+    steps:
+      - name: Send Failure Notification
+        run: |
+          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="[❌ Failed] There was an issue deploying ${{ env.REPO_URL }}. Please check the logs."
