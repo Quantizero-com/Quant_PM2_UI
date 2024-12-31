@@ -31,7 +31,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_rsa "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}" "bash -c '
             if [ ! -d ${DEPLOY_FOLDER} ]; then
-              cd /home/dev && GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy-Quant_PM2_UI" git clone ${REPO_URL} && cd /home/dev;
+              cd /home/dev && git clone ${REPO_URL} && cd /home/dev;
             else
               cd ${DEPLOY_FOLDER} && git pull origin main;
             fi
@@ -39,6 +39,7 @@ jobs:
           '"
           
         env:
+          GIT_SSH_COMMAND: "ssh -i ~/.ssh/deploy-Quant_PM2_UI"
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           REPO_URL: "https://github.com/${{ github.repository }}.git"
           DEPLOY_FOLDER: "/home/dev/Quant_PM2_UI"
