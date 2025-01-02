@@ -35,7 +35,10 @@ jobs:
             else
               cd ${DEPLOY_FOLDER} && git pull origin main;
             fi
-            npm ci
+
+            rm -rf ./node_modules
+            
+            npm install
 
             HOST=0.0.0.0 pm2 restart ecosystem.config.js && pm2 save
           '"
